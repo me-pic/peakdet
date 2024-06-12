@@ -1,18 +1,14 @@
 # -*- coding: utf-8 -*-
 import glob
 import os
-import sys
 import warnings
 
 import matplotlib
 
 matplotlib.use("WXAgg")
-from gooey import Gooey, GooeyParser
+import argparse
 
 import peakdet
-
-TARGET = "pythonw" if sys.platform == "darwin" else "python"
-TARGET += " -u " + os.path.abspath(__file__)
 
 LOADERS = dict(rtpeaks=peakdet.load_rtpeaks, MRI=peakdet.load_physio)
 
@@ -41,108 +37,73 @@ ATTR_CONV = {
 }
 
 
-@Gooey(
-    program_name="Physio pipeline",
-    program_description="Physiological processing pipeline",
-    default_size=(800, 600),
-    target=TARGET,
-)
-def get_parser():
+def _get_parser():
     """Parser for GUI and command-line arguments"""
-    parser = GooeyParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument(
-        "file_template",
-        metavar="Filename template",
-        widget="FileChooser",
-        help="Select a representative file and replace all "
-        'subject-specific information with a "?" symbol.'
-        "\nFor example, subject_001_data.txt should "
-        "become subject_???_data.txt and will expand to "
-        "match\nsubject_001_data.txt, subject_002_data."
-        "txt, ..., subject_999_data.txt.",
+        "-in",
+        "--input-file",
+        dest="filename",
+        help="Path to the physiological data file",
+        required=True,
     )
-
-    inp_group = parser.add_argument_group(
-        "Inputs", "Options to specify " "format of input files"
+    parser.add_argument(
+        "-config" "--config-file",
+        dest="config",
+        type=str,
+        help="Path to config file specifying the processing steps for each modality.",
+        required=True,
     )
-    inp_group.add_argument(
-        "--modality",
-        metavar="Modality",
-        default="ECG",
-        choices=list(MODALITIES.keys()),
-        help="Modality of input data.",
+    parser.add_argument(
+        "-indir", "--input-dir", dest="indir", type=str, help="", default="."
     )
-    inp_group.add_argument(
-        "--fs",
-        metavar="Sampling rate",
-        default=1000.0,
-        type=float,
-        help="Sampling rate of input data.",
+    parser.add_argument(
+        "-outfile" "--output-file",
+        dest="outfile",
+        default=None,
+        help="Path to the output file - or just its full name. If an extension is *not* declared, "
+        "the program will automatically append .phys to the specified name.",
     )
-    inp_group.add_argument(
-        "--source",
-        metavar="Source",
-        default="rtpeaks",
-        choices=list(LOADERS.keys()),
-        help="Program used to collect the data.",
+    parser.add_argument(
+        "-outdir",
+        "--output-dir",
+        dest="outdir",
+        default=".",
+        help="Path to the output folder. If it does not exist, it will be created.",
     )
-    inp_group.add_argument(
-        "--channel",
-        metavar="Channel",
-        default=1,
+    parser.add_argument(
+        "-phys",
+        "--phys-idx",
+        dest="phys_idx",
+        default=None,
         type=int,
-        help="Which channel of data to read from data "
-        'files.\nOnly applies if "Source" is set to '
-        "rtpeaks.",
+        help="Index(es) of the column(s) in the fname containing the timeserie to clean and process."
+        "If None, the workflow will go through all the columns of the fname file in `source`. "
+        "If you run the workflow on Phys2Bids outputs, please keep in mind the channel 0 is the time.",
     )
-
-    out_group = parser.add_argument_group(
-        "Outputs", "Options to specify " "format of output files"
+    parser.add_argument(
+        "-chtrig",
+        "--channel-trigger",
+        dest="chtrig",
+        default=0,
+        type=int,
+        help="The column number of the trigger channel. Default is None. If chtrig is left as None peakdet will "
+        "perform an automatic trigger channel search by channel names.",
     )
-    out_group.add_argument(
-        "-o",
-        "--output",
-        metavar="Filename",
-        default="peakdet.csv",
-        help="Output filename for generated measurements.",
-    )
-    out_group.add_argument(
-        "-m",
-        "--measurements",
-        metavar="Measurements",
-        nargs="+",
-        widget="Listbox",
-        choices=list(ATTR_CONV.keys()),
-        default=["Average NN intervals", "Standard deviation of NN intervals"],
-        help="Desired physiological measurements.\nChoose "
-        "multiple with shift+click or ctrl+click.",
-    )
-    out_group.add_argument(
-        "-s",
-        "--savehistory",
-        metavar="Save history",
+    parser.add_argument(
+        "-detector" "--manual-detector",
+        dest="manual_detector",
         action="store_true",
-        help="Whether to save history of data processing " "for each file.",
+        default=False,
+        help="Flag for manual peaks check. Default is False.",
     )
-
-    edit_group = parser.add_argument_group(
-        "Workflow arguments (optional!)",
-        "Options to specify modifications " "to workflow",
-    )
-    edit_group.add_argument(
-        "-n",
-        "--noedit",
-        metavar="Editing",
-        action="store_true",
-        help="Turn off interactive editing.",
-    )
-    edit_group.add_argument(
-        "-t",
-        "--thresh",
-        metavar="Threshold",
-        default=0.2,
-        type=float,
-        help="Threshold for peak detection algorithm.",
+    parser.add_argument(
+        "-lgr",
+        "--lgr-degree",
+        dest="lgr_degree",
+        default="info",
+        choices=["debug", "info", "quiet"],
+        help="The degree of verbosity of the logger. Default is `info`.",
     )
 
     return parser
@@ -280,10 +241,9 @@ def workflow(
             dest.write(",".join([fname] + outputs) + "\n")
 
 
-def main():
-    opts = get_parser().parse_args()
-    workflow(**vars(opts))
-
-
 if __name__ == "__main__":
-    main()
+    raise RuntimeError(
+        "peakdet/cli/run.py should not be run directly;\n"
+        "Please `pip install` peakdet and use the "
+        "`peakdet` command"
+    )

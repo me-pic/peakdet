@@ -5,11 +5,14 @@ directly but should support wrapper functions stored in `peakdet.operations`.
 """
 
 import inspect
+import re
 from functools import wraps
 
 import numpy as np
 
 from peakdet import physio
+
+TRIGGER_NAMES = ["trig", "trigger", "ttl"]
 
 
 def make_operation(*, exclude=None):
@@ -240,3 +243,36 @@ def check_troughs(data, peaks, troughs=None):
         all_troughs[f] = idx
 
     return all_troughs
+
+
+def find_chtrig(data):
+    """
+    Parameters
+    ----------
+    data : DataFrame
+        DataFrame containing the timeseries
+    Returns
+    -------
+        Trigger channel index
+    References
+    ----------
+    Daniel Alcalá, Apoorva Ayyagari, Katie Bottenhorn, Molly Bright, César Caballero-Gaudes, Inés Chavarría, Vicente Ferrer, Soichi Hayashi,    Vittorio Iacovella, François Lespinasse, Ross Markello, Stefano Moia, Robert Oostenveld, Taylor Salo, Rachael Stickland, Eneko Uruñuela, Merel van der Thiel, & Kristina Zvolanek. (2023). physiopy/phys2bids: BIDS formatting of physiological recordings (2.10.0). Zenodo. https://doi.org/10.5281/zenodo.7896344
+    """
+    joint_match = "§".join(TRIGGER_NAMES)
+    indexes = []
+    for n, case in enumerate(data.columns):
+        name = re.split(r"(\W+|\d|_|\s)", case)
+        name = list(filter(None, name))
+        if re.search("|".join(name), joint_match, re.IGNORECASE):
+            indexes = indexes + [n]
+
+    if indexes:
+        if len(indexes) > 1:
+            raise Exception(
+                "More than one possible trigger channel was automatically found. "
+                "Please run phys2bids specifying the -chtrig argument."
+            )
+        else:
+            return int(indexes[0])
+    else:
+        return None
